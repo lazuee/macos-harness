@@ -82,6 +82,8 @@ class El:
     children: list[El] = field(default_factory=list)
     acts: dict[str, str] = field(default_factory=dict)  # "AXPress": "press"
     settable_names: set[str] = field(default_factory=set)
+    # A field that only reports settable once focused (a browser address field).
+    settable_when_focused: bool = False
     owner_pid: int = 100
     win_id: int = 1
     rect: tuple[float, float, float, float] | None = None
@@ -150,6 +152,10 @@ class FakeAx:
         el.performed.append(f"set {name}")
 
     def settable(self, el: El, name: str) -> bool:
+        # A browser's address field reports settable only once focused, so a fake can
+        # say the same: `settable_when_focused`.
+        if getattr(el, "settable_when_focused", False) and el.attrs.get("AXFocused"):
+            return True
         return name in el.settable_names
 
     def actions(self, el: El) -> dict[str, str]:

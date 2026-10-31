@@ -57,8 +57,14 @@ def _full(capture: Capture, footer: str) -> str:
 class Revisions:
     """The last state of one app as one agent saw it."""
 
+    # How many superseded states stay known. A page that redraws itself replaces most
+    # numbers at once, and the model is still holding one from the read before: two
+    # states is one turn of a page. Any more than a couple is history nobody uses.
+    KEEP_BEHIND = 3
+
     def __init__(self):
         self.last: Capture | None = None
+        self._before: list[Capture] = []  # superseded states, newest first
         self._observer = None
         self._pid: int | None = None
         self._lock = threading.Lock()
@@ -87,6 +93,9 @@ class Revisions:
         if old is not None:
             changes = diff.pair(old.lines, lines, _number)
             text = diff.text(changes, capture.window_title, footer, len(lines))
+        if self.last is not None:
+            self._before.insert(0, self.last)
+            del self._before[self.KEEP_BEHIND :]
         self.last = capture
         with self._lock:
             self._destroyed.clear()
@@ -98,11 +107,27 @@ class Revisions:
         """The line with this number in the last state, with an element that is alive."""
         known = [*self.last.lines, *_extra(self.last)] if self.last else []
         line = next((node for node in known if node.id == index), None)
+        current = line is not None
+        if not current:
+            # The number is not in the current state. A page that redrew itself moved
+            # every number on, and the model still holds one from before the redraw,
+            # so look for it in the states just behind and go on from there.
+            line = next(
+                (
+                    node
+                    for older in self._before
+                    for node in [*older.lines, *_extra(older)]
+                    if node.id == index
+                ),
+                None,
+            )
         if line is None:
             raise errors.invalid_element_id(index)
         if self._observer is None:
             raise errors.no_invalidation_monitor()
-        if not self._dead(line.element):
+        # A line from an older state is never alive under its old reading, so it is
+        # looked up again like a dead one.
+        if current and not self._dead(line.element):
             return line
 
         def alike(node: Line) -> bool:

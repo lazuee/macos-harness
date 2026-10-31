@@ -969,7 +969,18 @@ def test_setting_value_element_marked_settable_fails_after_round(monkeypatch):
     combo = r.add(El("AXComboBox", rect=(200, 200, 80, 20)))
     text = message(r.actions.set_value, r.app, line(combo), "x")
     assert text == "The value of this element cannot be set"
-    assert combo.performed == [] and r.events.posted == []
+    # The focus is tried first, and a click after it, because a set may depend on
+    # either. Only then does it give up: nothing is typed.
+    assert combo.performed == ["set AXFocused"]
+    assert [e["type"] for e in r.events.posted] == ["down", "up"]  # one click
+
+
+def test_a_field_that_only_became_settable_when_focused_is_set(monkeypatch):
+    """A browser's address field: focused it reports settable, before that it does not."""
+    r = rig(monkeypatch)
+    field = r.add(El("AXTextField", rect=(200, 200, 80, 20), settable_when_focused=True))
+    r.actions.set_value(r.app, line(field), "x")
+    assert field.attrs["AXValue"] == "x"
 
 
 @pytest.mark.parametrize(

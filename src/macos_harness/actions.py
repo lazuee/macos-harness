@@ -677,8 +677,6 @@ def _like(current, value: str):
 def set_value(app: AppSession, line: Line, value: str) -> None:
     element = line.element
     _owner(app, element)
-    if not ax.settable(element, "AXValue"):
-        raise errors.not_settable()
     _no_path_as_name(element, value)
     _show(element)
     # A text area (a document) is clicked first even when it has focus. Measured:
@@ -688,6 +686,13 @@ def set_value(app: AppSession, line: Line, value: str) -> None:
     unfocused = line.role in TEXT_FIELDS and not ax.get(element, "AXFocused")
     if document or (unfocused and not focus.focus_element(element)):
         _click_once(app, element)
+    # Asked after the focus, not before: a browser's address field reports its value
+    # settable only in its editing state, and focusing it through the accessibility
+    # API does not enter that state. A click does (Ardia and Chrome both, measured).
+    if not ax.settable(element, "AXValue"):
+        _click_once(app, element)
+        if not ax.settable(element, "AXValue"):
+            raise errors.not_settable()
     ax.set(element, "AXValue", _like(ax.get(element, "AXValue"), value))
     # Only a browser's address field is submitted. A search field of an app is not:
     # measured, a value set there starts no search until Return is pressed by a call.

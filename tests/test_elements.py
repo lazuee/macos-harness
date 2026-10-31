@@ -169,6 +169,28 @@ def test_stale_element_refetched_before_acting_trusted(revisions):
     assert revisions.resolve(1, never).element is new  # the line holds the new one
 
 
+def test_a_number_from_the_state_just_replaced_still_resolves(revisions):
+    """A page that redrew itself moved every number on, and the caller still holds an
+    old one: it is found in the state behind and fetched again, not refused."""
+    first = field()
+    revisions.present(state(first), False)
+    # The redraw drops the old field and puts another one in: nothing pairs, so the
+    # new field gets a fresh number and the old one is gone from the current state.
+    renamed = field(title="Confirm")
+    revisions.present(state(line(1, "button Away"), renamed), False)
+    got = revisions.resolve(2, reads(field(renamed, title="Confirm")))
+    assert got.text == "text field Confirm"
+
+
+def test_a_number_from_far_behind_is_refused(revisions):
+    """Only the couple of states behind are kept."""
+    revisions.present(state(field()), False)
+    for _ in range(elements.Revisions.KEEP_BEHIND + 1):
+        revisions.present(state(line(1, "button Other")), False)
+    with pytest.raises(errors.HarnessError, match="No element has the ID 2"):
+        revisions.resolve(2, never)
+
+
 def test_prepare_step_before_any_element_action_returns_refetchable(revisions):
     read = state(field(), line(1, "button"))
     revisions.present(read, False)
