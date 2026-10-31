@@ -451,15 +451,26 @@ def type_text(call: Call) -> Result:
     text = call.args.get("text", "")
     if len(text) > MAX_TEXT:
         raise errors.usage("text_length", most=MAX_TEXT)
+    given = None if "delay" not in call.args else _number(call.args["delay"])
+    if "delay" in call.args and given is None:
+        raise errors.invalid_duration()
+    if given is not None and given < 0:
+        raise errors.invalid_duration()
+
+    def pace(target: AppTarget) -> float:
+        """The app's delay, unless one was asked for."""
+        if given is not None:
+            return given
+        return SLOW_TYPING.get(target.bundle_id, TYPE_DELAY)
 
     def send(app: AppSession) -> None:
         if not text:
             raise errors.no_text_to_type()
-        mods.actions.type_text(app, text)
+        mods.actions.type_text(app, text, given)
 
     def takes(target: AppTarget) -> float:
         """A key down and a key up per character, each followed by the app's delay."""
-        each = 2 * SLOW_TYPING.get(target.bundle_id, TYPE_DELAY)
+        each = 2 * pace(target)
         if len(text) * each > MAX_HOLD_S:  # an app that is typed into slowly
             raise errors.usage("text_length", most=int(MAX_HOLD_S / each))
         return len(text) * each
@@ -641,6 +652,10 @@ PARAMS = {
     "key": ("str", _KEY),
     "duration": ("num", "Seconds to hold each press (0 to 30)"),
     "duration_ms": ("num", "The same in milliseconds (0 to 30000)"),
+    "delay": (
+        "num",
+        "Seconds to wait after each key in type_text; left out, the app's own pace",
+    ),
     "from_x": (
         "num",
         "Where the drag starts: horizontal pixel position in the screenshot",
@@ -799,7 +814,7 @@ TOOLS = {
     ),
     "type_text": _tool(
         type_text,
-        "app text",
+        "app text delay",
         "app text",
         description="Type the given text as key presses",
         example='type_text --app TextEdit --text "hello world"',

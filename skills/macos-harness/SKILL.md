@@ -9,7 +9,7 @@ Every command names the app. One shell call: the actions you are sure of, then o
 
 ```bash
 macos-harness get_app_state --app "TextEdit"
-macos-harness click --app "TextEdit" --element_index 12 && macos-harness type_text --app "TextEdit" --text "hello world" && macos-harness press_key --app "TextEdit" --key "super+s" && macos-harness get_app_state --app "TextEdit"
+macos-harness click --app "TextEdit" --element_index 12 && macos-harness type_text --app "TextEdit" --text "hello world" --delay 0.01 && macos-harness press_key --app "TextEdit" --key "super+s" && macos-harness get_app_state --app "TextEdit"
 macos-harness set_value --app "TextEdit" --element_index 7 --value "report.txt" && macos-harness scroll --app "TextEdit" --element_index 3 --direction down --pages 1 && macos-harness get_app_state --app "TextEdit"
 ```
 
@@ -18,7 +18,7 @@ macos-harness set_value --app "TextEdit" --element_index 7 --value "report.txt" 
 - The second read prints only what changed (`~` changed, `+` new). `Nothing changed` means your action did nothing: try another way, do not read again.
 - If a click by number does nothing, open the file on the `Screenshot` line and click by `--x` and `--y`. No menu bar in the image: use numbers there.
 - If the state shows only a menu, click one of its lines, or leave it with `press_key` and `--key Escape`.
-- `type_text` types at the text cursor: click the field first. `set_value` replaces a field's whole text and needs no click.
+- `type_text` types at the cursor: click the field first. `set_value` needs no click.
 - Text with quotes or several lines: `macos-harness paste --app "TextEdit" <<'EOF'`, the text, `EOF`.
 - Never use AppleScript, `osascript`, System Events or other ways to click and type unless the person asks.
 
@@ -44,7 +44,7 @@ macos-harness paste --app TextEdit --text "<b>hi</b>" --format html
 macos-harness drag --app TextEdit --from_x 200 --from_y 300 --to_x 500 --to_y 300
 ```
 
-- `--direction` up, down, left, right. `--mouse_button` left, right, middle. `--selection_type` text, cursor_before, cursor_after. `--format` text, md, html. `--duration` (seconds, 0 to 30, click and press_key) holds the press.
+- `--direction` up, down, left, right. `--mouse_button` left, right, middle. `--selection_type` text, cursor_before, cursor_after. `--format` text, md, html. `--duration` (0 to 30, click and press_key) holds the press. `--delay` (type_text): key pause.
 - Keys are xdotool names, case matters: `Return`, `Tab`, `Escape`, `Up`, `KP_0`, `super+c` (super is Command). Spaces separate several presses.
 - Also accepted: `macos-harness click TextEdit 40`, `macos-harness click '{"app":"TextEdit","element_index":40}'`, `--name=value`, `--json` (JSON result), `--text` or `--value` from stdin.
 - Use only the commands and flags on this page. `macos-harness skill` prints it again.

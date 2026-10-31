@@ -638,13 +638,13 @@ def slow_typing(served) -> list[str]:
     """type_text types one key per 10 ms, 5 s for 500, and notes where it stopped."""
     typed = []
 
-    def type_text(app, text):
+    def type_text(app, text, delay=None):
         for key in text:
             if app.cancel():
                 typed.append("cancelled")
                 raise errors.user_changed(app.target.path)  # what a cancelled one says
             typed.append(key)
-            time.sleep(0.01)
+            time.sleep(0.01 if delay is None else delay)
 
     served.actions.answers["type_text"] = type_text
     return typed

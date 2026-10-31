@@ -593,13 +593,18 @@ def press_key(app: AppSession, spec: str, hold: float | None = None) -> None:
     _send_keys(app, presses, hold=hold)
 
 
-def type_text(app: AppSession, text: str) -> None:
-    """Always key events, added to what is there. Never the clipboard."""
+def type_text(app: AppSession, text: str, delay: float | None = None) -> None:
+    """Always key events, added to what is there. Never the clipboard.
+
+    `delay` overrides the per-key pause when the app needs a slower or a faster
+    pace. Left out, the app's own pace, else the usual one.
+    """
     if not text:
         raise errors.no_text_to_type()
     focused = _try(ax.get, ax.app(app.target.pid), "AXFocusedUIElement")
     _no_path_as_name(focused, text)
-    delay = SLOW_TYPING.get(app.target.bundle_id, TYPE_DELAY)
+    if delay is None:
+        delay = SLOW_TYPING.get(app.target.bundle_id, TYPE_DELAY)
     _send_keys(app, keys.presses(text), delay)
 
 

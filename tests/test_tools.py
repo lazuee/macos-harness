@@ -893,6 +893,27 @@ def test_text_for_an_app_that_is_typed_into_slowly_is_capped_by_its_time(
     assert active.run("type_text", "Demo", "x" * 3000)[0] == 0
 
 
+def test_a_delay_override_is_passed_to_the_action(active):
+    assert active.run("type_text", "Demo", "hi", "--delay", "0.05")[0] == 0
+    assert active.args("actions.type_text")[1:] == ("hi", 0.05)
+
+
+def test_without_a_delay_the_app_pace_is_left_to_the_action(active):
+    assert active.run("type_text", "Demo", "hi")[0] == 0
+    assert active.args("actions.type_text")[1:] == ("hi", None)
+
+
+def test_a_delay_override_raises_the_time_cap(active, monkeypatch):
+    """The cap follows the pace that will be used, so a slow one shortens the text."""
+    monkeypatch.setitem(tools.SLOW_TYPING, TARGET.bundle_id, 0.0)
+    assert active.run("type_text", "Demo", "x" * 3000, "--delay", "0.5")[0] == 2
+
+
+def test_a_negative_delay_is_refused(active):
+    code, _, err = active.run("type_text", "Demo", "hi", "--delay", "-1")
+    assert code == 2 and "duration" in err
+
+
 def test_the_person_gate_is_asked_again_after_the_wait_for_the_queue(active):
     asked = []
     refusal = errors.user_changed(TARGET.path)
