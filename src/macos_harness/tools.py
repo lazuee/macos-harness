@@ -131,20 +131,19 @@ def _target(a: dict) -> int | tuple[float, float]:
     return _index(a) if "element_index" in a else _point(a)
 
 
-def _centre(app: Any, line: Line) -> Point:
-    """The pixel at the middle of an element, from the shot of the last read.
+def _centre(line: Line) -> Point:
+    """The screen point at the middle of an element.
 
     `--point` clicks with events at a control's own centre: it needs no estimate
     of where the control is, and still runs the raw path instead of the
-    accessibility action an element number would take.
+    accessibility action an element number would take. The frame is already in
+    screen points, which is what the action takes.
     """
-    if app.shot is None:
-        raise errors.screenshot_failed()
     box = mods.ax.frame(line.element)
     if box is None:  # it has no place on screen: the action knows better
         raise errors.cannot_click_offscreen()
     left, top, width, height = box
-    return app.shot.to_image(left + width / 2, top + height / 2)
+    return (left + width / 2, top + height / 2)
 
 
 def _button(value: Any) -> int:
@@ -448,7 +447,7 @@ def click(call: Call) -> Result:
         # An element number picks the raw-event path: turn it into the control's
         # own centre first, so the pixel needs no estimate.
         send = lambda app, where: mods.actions.click(
-            app, _centre(app, where), button, count, key, hold
+            app, _centre(where), button, count, key, hold
         )
     else:
         send = lambda app, where: mods.actions.click(app, where, button, count, key, hold)

@@ -49,11 +49,10 @@ PRESS_MENU_TITLES = False
 ALWAYS_SIMULATE_CLICK = "MACOS_HARNESS_ALWAYS_SIMULATE_CLICK"  # "1": never rung 1
 
 MOVE_LEAD = 0.067  # seconds between the mouse-moved event and the press
-# Points to probe around a pixel click before calling it empty. Three points is
-# about one small control edge, so an edge hit still counts as close enough.
-NEARBY = tuple(
-    (x, y) for d in (3.0, -3.0) for x, y in ((d, 0.0), (0.0, d), (d, d))
-)
+# A container no bigger than this is taken for a control: some controls expose
+# themselves as a bare group, and one that size is what the person aimed at. Well
+# under a pane (228 in Calculator), well over a button (48).
+HOLDS_MAX = 160.0
 SCROLL_LEAD, SCROLL_REST = 0.017, 0.010  # seconds before and after the wheel event
 CLICK_GAP = 0.1  # seconds between the clicks of a double click
 # A drag moves in steps of at most this many points, this many seconds apart, at most
@@ -70,6 +69,17 @@ BROWSER_FIELD = "WEB_BROWSER_ADDRESS_AND_SEARCH_FIELD"
 MENU_FAILED = errors.menu_click_failed().message
 
 WHEEL = {"up": (0, 1), "down": (0, -1), "left": (-1, 0), "right": (1, 0)}
+# Storage that takes no click of its own. A pixel that lands on one, with nothing
+# else near, was aimed at a gap: the click would post and change nothing.
+HOLDS = {
+    "AXGroup",
+    "AXSplitGroup",
+    "AXSplitter",
+    "AXLayoutArea",
+    "AXLayoutItem",
+    "AXScrollArea",
+    "AXUnknown",
+}
 MENU_ROLES = {"AXMenuBarItem", "AXMenuItem"}
 OPENS_MENU = {"AXMenuBarItem", "AXPopUpButton", "AXMenuButton"}
 MAY_SELECT = {"AXRow", "AXCell"}  # a click there selects: never the Command tier
@@ -224,18 +234,22 @@ def _at(app: AppSession, point: Point) -> tuple[WindowRef, object]:
     return window, element
 
 
-def _nearby(app: AppSession, point: Point) -> bool:
-    """Whether anything at all answers within a few points of a pixel.
+def _gap(element: object) -> bool:
+    """Whether a pixel landed on a gap: storage, with nothing worth clicking.
 
-    A pixel is where the person aimed, not where the control is: a point just past
-    a button's edge lands on its container and still clicks. A point in a gap
-    answers nothing and would click into empty space without a sign.
+    A click on a container posts its events and changes nothing, which is
+    indistinguishable from a working click. A small container is left alone,
+    because some controls expose themselves as a bare group and one that size is
+    what the person aimed at.
     """
-    root = ax.app(app.target.pid)
-    for dx, dy in NEARBY:
-        if ax.at(root, point[0] + dx, point[1] + dy) is not None:
-            return True
-    return False
+    if element is None:
+        return True
+    if _try(ax.get, element, "AXRole") not in HOLDS:
+        return False
+    box = _try(ax.frame, element)
+    if box is None:
+        return False
+    return box[2] > HOLDS_MAX or box[3] > HOLDS_MAX
 
 
 def _recipient(app: AppSession, pid: int) -> int:
@@ -525,7 +539,7 @@ def click(
         window, element = _at(app, point)
         # A pixel in a gap would click into nothing and still report success.
         # Say so instead, so the model corrects its aim rather than believing it.
-        if element is None and not _nearby(app, point):
+        if _gap(element):
             raise errors.empty_pixel()
     presence.pointer_move(point, window)
     presence.pointer_press(count)

@@ -467,12 +467,12 @@ def test_an_element_number_wins_over_a_point_without_a_word(active):
     assert active.args("actions.click")[1].id == 0
 
 
-def test_point_clicks_the_centre_of_the_number_as_a_pixel(active):
-    """--point takes the estimate out: the number still says where, as a pixel."""
+def test_point_clicks_the_centre_of_the_number(active):
+    """--point takes the estimate out: the element's own centre is the target."""
     assert active.run("click", "Demo", "0", "--point")[0] == 0
-    where = active.args("actions.click")[1]
-    assert isinstance(where, tuple)  # a point, so the raw-event path runs
-    assert active.args("actions.click")[2:] == (0, 1, None, None)
+    # The fake frame is (10, 10, 40, 20): its middle, in screen points.
+    assert active.args("actions.click")[1] == (30.0, 20.0)
+    assert active.args("actions.click")[2:] == (0, 1, None, None)  # the raw path
 
 
 def test_point_needs_a_number(active):
@@ -491,15 +491,59 @@ def test_a_pixel_with_nothing_under_it_is_refused(monkeypatch):
         actions.click(session, (5.0, 5.0))
 
 
-def test_nearby_finds_a_control_just_outside_the_pixel(monkeypatch):
-    """Only a few points out counts, so an edge miss still clicks."""
-    probe = fakes_a.Module(
-        "ax", [], {"at": lambda root, x, y: "hit" if x > 5 else None, "app": None}
+def test_a_pixel_on_a_bare_container_is_refused(monkeypatch):
+    """A gap answers with a container, not nothing: that is what a miss looks like."""
+    monkeypatch.setattr(
+        actions,
+        "windows",
+        fakes_a.Module("windows", [], {"at": WINDOW, "ref": WINDOW}),
     )
-    monkeypatch.setattr(actions, "ax", probe)
-    assert actions._nearby(fakes_a.AppSession(), (5.0, 5.0))
-    probe.answers["at"] = lambda *a: None
-    assert not actions._nearby(fakes_a.AppSession(), (5.0, 5.0))
+    monkeypatch.setattr(
+        actions,
+        "ax",
+        fakes_a.Module(
+            "ax",
+            [],
+            {
+                "at": "box",
+                "app": None,
+                "get": "AXGroup",
+                "pid": 4242,
+                "frame": (0.0, 0.0, 400.0, 300.0),
+            },
+        ),
+    )
+    with pytest.raises(errors.HarnessError, match="Nothing is at that pixel"):
+        actions.click(fakes_a.AppSession(), (5.0, 5.0))
+
+
+def _probe(monkeypatch, role: str, box: tuple[float, float, float, float]):
+    monkeypatch.setattr(
+        actions,
+        "ax",
+        fakes_a.Module("ax", [], {"get": role, "frame": box}),
+    )
+
+
+def test_a_gap_is_a_big_container(monkeypatch):
+    """The pane a click lands in with nothing in it: storage, and big."""
+    _probe(monkeypatch, "AXSplitGroup", (0.0, 0.0, 400.0, 300.0))
+    assert actions._gap("box")
+
+
+def test_a_small_bare_group_is_not_a_gap(monkeypatch):
+    """Some controls expose themselves as a group: one that size is a control."""
+    _probe(monkeypatch, "AXGroup", (10.0, 10.0, 100.0, 40.0))
+    assert not actions._gap("box")
+
+
+def test_a_control_is_never_a_gap(monkeypatch):
+    _probe(monkeypatch, "AXButton", (0.0, 0.0, 400.0, 300.0))
+    assert not actions._gap("box")
+
+
+def test_nothing_at_all_is_a_gap(monkeypatch):
+    assert actions._gap(None)
 
 
 def test_json_number_as_text_reaches_the_tool_as_a_number(active):
