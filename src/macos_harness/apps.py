@@ -344,8 +344,11 @@ def _target(path: str, procs: list[Proc]) -> AppTarget:
 
 
 def _by_pid(identifier: str, procs: list[Proc]) -> AppTarget | None:
+    # A bare number is a pid too. It names one process exactly, where a name is a
+    # substring-shaped guess, so it is tried before them. `#pid:` stays for a pid
+    # that could be read as something else.
     pid = identifier.removeprefix(PID_PREFIX)
-    if pid == identifier or not pid.isdigit():
+    if not pid.isdigit():
         return None
     live = next((p for p in procs if p.pid == int(pid)), None)
     return _proc_target(live) if live else None
@@ -406,6 +409,13 @@ def resolve(identifier: str) -> AppTarget:
     if not identifier.strip():
         raise errors.invalid_app(identifier)
     procs = SYSTEM.running()
+    # A pid names one process exactly, so a number is not also tried as a name: a pid
+    # that has quit must say so, not quietly resolve to an app whose name it spells.
+    if identifier.removeprefix(PID_PREFIX).isdigit():
+        live = _by_pid(identifier, procs)
+        if live is None:
+            raise errors.invalid_app(identifier)
+        return live
     found = (
         _by_pid(identifier, procs)
         or _by_path(identifier, procs)

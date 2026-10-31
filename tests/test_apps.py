@@ -230,6 +230,25 @@ def test_path_normalisation_placeholder_id(system):
     assert apps.resolve(path).pid == 71
 
 
+def test_a_bare_number_is_a_pid(system):
+    """A pid names one process exactly, so it needs no prefix to be understood."""
+    system.procs = [
+        proc(321, "Raw Tool", None),
+        proc(322, "Bundled", "/Apps/B.app", "dev.b"),
+    ]
+    assert apps.resolve("321") == apps.resolve("#pid:321")
+    assert apps.resolve("322") == apps.resolve("#pid:322")
+
+
+def test_a_number_that_quit_is_not_taken_for_a_name(system):
+    """A pid that is gone must say so, not resolve to an app whose name it spells."""
+    system.procs = [proc(9, "1234", "/Apps/1234.app", "dev.n")]
+    with pytest.raises(errors.HarnessError, match="No app called"):
+        apps.resolve("1234")
+    system.procs = [proc(1234, "Other", "/Apps/Other.app", "dev.o")]
+    assert apps.resolve("1234").pid == 1234  # the live pid wins over the name
+
+
 def test_pid_ids(system):
     """A process with no bundle is named by its pid, in the list and back."""
     system.procs = [
