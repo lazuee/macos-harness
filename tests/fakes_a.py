@@ -15,7 +15,7 @@ import sys
 import time
 from dataclasses import replace
 
-from macos_harness import errors, helper, tools
+from macos_harness import actions, errors, helper, tools
 from macos_harness.model import (
     AgentSession,
     AppKind,
@@ -25,6 +25,9 @@ from macos_harness.model import (
     Policy,
     Shot,
     WindowRef,
+)
+from macos_harness.model import (
+    AppSession as AppSessionType,
 )
 
 TARGET = AppTarget("/Applications/Demo.app", "com.example.demo", "Demo")
@@ -44,6 +47,13 @@ ACTIONS = [
 ]
 # module -> function -> what it answers. A callable is called, an exception is raised.
 CONTRACT = {
+    # The hit test answers what sits under a point. A pixel test swaps it.
+    "ax": {
+        "at": None,  # nothing under any point: a click into a gap
+        "frame": (10.0, 10.0, 40.0, 20.0),
+        "app": None,
+        "pid": 4242,
+    },
     "apps": {"resolve": TARGET, "launch": RUNNING, "running": RUNNING}
     | {"kind": AppKind(), "list_apps": [], "prewarm": None, "panel_owner": None},
     "policy": {
@@ -64,7 +74,7 @@ CONTRACT = {
     )
     | {"interrupted": False, "driven": []},
     "windows": dict.fromkeys(["open_menu", "watch", "unwatch"])
-    | {"key_window": WINDOW, "extra_windows": []},
+    | {"key_window": WINDOW, "extra_windows": [], "at": WINDOW},
     "tree": dict.fromkeys(["read", "enable", "disable", "disable_all", "ask_once"]),
     "settle": {"wait": None},
     "screenshot": {
@@ -171,6 +181,13 @@ class World:
         return tools.run(list(argv), stdin, agent or self.agent, "/work", self.deadline)
 
 
+def AppSession() -> AppSessionType:
+    """One open app session, enough for an action to run against."""
+    return AppSessionType(
+        agent=AgentSession("agent-1"), target=TARGET, active=True, revisions=Revisions([])
+    )
+
+
 def install(patch=None) -> World:
     """Put the fakes where tools.py and helper.py look for the other modules.
 
@@ -181,6 +198,8 @@ def install(patch=None) -> World:
     for name, module in world.modules.items():
         # Into the instance dict: asking tools.mods for the old value would import it.
         (patch.setitem if patch else dict.__setitem__)(vars(tools.mods), name, module)
+    # actions.py imports these names directly, so the same fakes go there too.
+    (patch.setattr if patch else setattr)(actions, "ax", world.modules["ax"])
     sessions = helper.Sessions()
     sessions.revisions = lambda: Revisions(world.log)
     put(helper, "SESSIONS", sessions)

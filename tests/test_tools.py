@@ -14,7 +14,7 @@ import fakes_a
 import pytest
 from fakes_a import RUNNING, SHOT, TARGET, WINDOW
 
-from macos_harness import errors, helper, person, tools
+from macos_harness import actions, errors, helper, person, tools
 from macos_harness.model import AgentSession, AppKind, AppTarget
 
 ACTION_LINE = "Done. Call `get_app_state` to see the new state of the UI.\n"
@@ -465,6 +465,41 @@ def test_an_element_number_wins_over_a_point_without_a_word(active):
     argv = ["click", "--app", "Demo", "--element_index", "0", "--x", "9", "--y", "9"]
     assert active.run(*argv)[0] == 0
     assert active.args("actions.click")[1].id == 0
+
+
+def test_point_clicks_the_centre_of_the_number_as_a_pixel(active):
+    """--point takes the estimate out: the number still says where, as a pixel."""
+    assert active.run("click", "Demo", "0", "--point")[0] == 0
+    where = active.args("actions.click")[1]
+    assert isinstance(where, tuple)  # a point, so the raw-event path runs
+    assert active.args("actions.click")[2:] == (0, 1, None, None)
+
+
+def test_point_needs_a_number(active):
+    code, _, err = active.run("click", "Demo", "--point")
+    assert code == 2 and "element_index" in err
+
+
+def test_a_pixel_with_nothing_under_it_is_refused(monkeypatch):
+    """A click into a gap would report success and do nothing, so it says so."""
+    session = fakes_a.AppSession()
+    monkeypatch.setattr(actions, "windows", fakes_a.Module("windows", [], {"at": WINDOW}))
+    monkeypatch.setattr(
+        actions, "ax", fakes_a.Module("ax", [], {"at": lambda *a: None, "app": None})
+    )
+    with pytest.raises(errors.HarnessError, match="Nothing is at that pixel"):
+        actions.click(session, (5.0, 5.0))
+
+
+def test_nearby_finds_a_control_just_outside_the_pixel(monkeypatch):
+    """Only a few points out counts, so an edge miss still clicks."""
+    probe = fakes_a.Module(
+        "ax", [], {"at": lambda root, x, y: "hit" if x > 5 else None, "app": None}
+    )
+    monkeypatch.setattr(actions, "ax", probe)
+    assert actions._nearby(fakes_a.AppSession(), (5.0, 5.0))
+    probe.answers["at"] = lambda *a: None
+    assert not actions._nearby(fakes_a.AppSession(), (5.0, 5.0))
 
 
 def test_json_number_as_text_reaches_the_tool_as_a_number(active):

@@ -26,6 +26,8 @@ from .model import (
     AgentSession,
     AppSession,
     AppTarget,
+    Line,
+    Point,
     Shot,
 )
 
@@ -127,6 +129,22 @@ def _point(a: dict, x: str = "x", y: str = "y", text: str = "coordinate"):
 def _target(a: dict) -> int | tuple[float, float]:
     """An element number when one is given (x and y are then ignored), else a point."""
     return _index(a) if "element_index" in a else _point(a)
+
+
+def _centre(app: Any, line: Line) -> Point:
+    """The pixel at the middle of an element, from the shot of the last read.
+
+    `--point` clicks with events at a control's own centre: it needs no estimate
+    of where the control is, and still runs the raw path instead of the
+    accessibility action an element number would take.
+    """
+    if app.shot is None:
+        raise errors.screenshot_failed()
+    box = mods.ax.frame(line.element)
+    if box is None:  # it has no place on screen: the action knows better
+        raise errors.cannot_click_offscreen()
+    left, top, width, height = box
+    return app.shot.to_image(left + width / 2, top + height / 2)
 
 
 def _button(value: Any) -> int:
@@ -418,7 +436,7 @@ def get_app_state(call: Call) -> Result:
 
 def click(call: Call) -> Result:
     a = call.args
-    target = _target(a)
+    target: Any = _index(a) if a.get("point") else _target(a)
     button = _button(a["mouse_button"])
     count = _integer(a["click_count"]) or 0  # not checked here: a count below 1 fails
     if count > MAX_CLICKS:
@@ -426,7 +444,14 @@ def click(call: Call) -> Result:
     key, hold = a.get("key"), _hold(a)
     if hold and count * hold > MAX_HOLD_S:  # five clicks of 30 s outlast the client
         raise errors.usage("duration")
-    send = lambda app, where: mods.actions.click(app, where, button, count, key, hold)
+    if a.get("point"):
+        # An element number picks the raw-event path: turn it into the control's
+        # own centre first, so the pixel needs no estimate.
+        send = lambda app, where: mods.actions.click(
+            app, _centre(app, where), button, count, key, hold
+        )
+    else:
+        send = lambda app, where: mods.actions.click(app, where, button, count, key, hold)
     return _act(call, send, target, takes=lambda target: count * (hold or 0.0))
 
 
@@ -636,6 +661,10 @@ _KEY = (
 PARAMS = {
     "app": ("str", _APP),
     "disableDiff": ("bool", "Print the whole tree, not only what changed"),
+    "point": (
+        "bool",
+        "With element_index: click its centre with raw events instead of the accessibility action",
+    ),
     "emit": ("bool", "false: do the read and print only the Screenshot line"),
     "keep": ("bool", "Keep the screenshot for good, as proof (a path without spaces)"),
     "element_index": (
@@ -749,7 +778,7 @@ TOOLS = {
     ),
     "click": _tool(
         click,
-        "app element_index x y mouse_button click_count key duration",
+        "app element_index x y point mouse_button click_count key duration",
         "app element_index",
         description="Click one element, given by its index or by a pixel position in the screenshot",
         example="click --app Finder --element_index 40",

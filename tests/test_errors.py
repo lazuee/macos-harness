@@ -523,6 +523,16 @@ TEXTS = [
         P + "The screenshot has an unusable size: (0, 1184)",
     ),
     (
+        "empty_pixel",
+        (),
+        100,
+        "server_error",
+        P
+        + "Nothing is at that pixel, so the click would land on nothing. Take the "
+        "number of the element from the read and use `--element_index`, or aim "
+        "again: x and y are pixels of the screenshot, whose size is on its line.",
+    ),
+    (
         "screenshot_scale",
         (0.0,),
         100,

@@ -49,6 +49,11 @@ PRESS_MENU_TITLES = False
 ALWAYS_SIMULATE_CLICK = "MACOS_HARNESS_ALWAYS_SIMULATE_CLICK"  # "1": never rung 1
 
 MOVE_LEAD = 0.067  # seconds between the mouse-moved event and the press
+# Points to probe around a pixel click before calling it empty. Three points is
+# about one small control edge, so an edge hit still counts as close enough.
+NEARBY = tuple(
+    (x, y) for d in (3.0, -3.0) for x, y in ((d, 0.0), (0.0, d), (d, d))
+)
 SCROLL_LEAD, SCROLL_REST = 0.017, 0.010  # seconds before and after the wheel event
 CLICK_GAP = 0.1  # seconds between the clicks of a double click
 # A drag moves in steps of at most this many points, this many seconds apart, at most
@@ -217,6 +222,20 @@ def _at(app: AppSession, point: Point) -> tuple[WindowRef, object]:
     if element is not None and ax.pid(element) != app.target.pid:
         window = windows.ref(element)  # drawn by another process: it gets the event
     return window, element
+
+
+def _nearby(app: AppSession, point: Point) -> bool:
+    """Whether anything at all answers within a few points of a pixel.
+
+    A pixel is where the person aimed, not where the control is: a point just past
+    a button's edge lands on its container and still clicks. A point in a gap
+    answers nothing and would click into empty space without a sign.
+    """
+    root = ax.app(app.target.pid)
+    for dx, dy in NEARBY:
+        if ax.at(root, point[0] + dx, point[1] + dy) is not None:
+            return True
+    return False
 
 
 def _recipient(app: AppSession, pid: int) -> int:
@@ -504,6 +523,10 @@ def click(
     else:
         point, lead = target, MOVE_LEAD
         window, element = _at(app, point)
+        # A pixel in a gap would click into nothing and still report success.
+        # Say so instead, so the model corrects its aim rather than believing it.
+        if element is None and not _nearby(app, point):
+            raise errors.empty_pixel()
     presence.pointer_move(point, window)
     presence.pointer_press(count)
     series = []

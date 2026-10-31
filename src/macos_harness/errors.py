@@ -151,6 +151,7 @@ TEXTS: dict[str, tuple[int | None, str, str]] = {
     "screenshot_failed": (None, "", "Taking the screenshot failed."),
     "screenshot_size": (None, "", "The screenshot has an unusable size: {size}"),
     "screenshot_scale": (None, "", "The screenshot has an unusable scale: {scale} pixels per point, so pixel positions cannot be mapped. Call `get_app_state` again to take a new screenshot before using x and y."),
+    "empty_pixel": (None, "", "Nothing is at that pixel, so the click would land on nothing. Take the number of the element from the read and use `--element_index`, or aim again: x and y are pixels of the screenshot, whose size is on its line."),
     "no_invalidation_monitor": (None, "", "Internal error: this app session has no change monitor."),
     "skill_missing": (None, "", "the skill file is missing"),
     # the helper itself
