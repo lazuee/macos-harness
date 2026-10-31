@@ -43,6 +43,18 @@ def _number(line: Line) -> int | None:
     return line.id
 
 
+# A full tree bigger than this is cut. A page of a busy app (a Discord server, a
+# video page with its chat) reaches a couple of thousand lines, which crowds out the
+# handful a step actually needed. Wide enough to hold a large native app whole.
+MAX_LINES = 400
+# Said on a cut tree. Numbers of lines past the cut still work, so the rest is only
+# needed to see further, not to act.
+_CUT = (
+    "… {rest} more lines of {total}. Actions on the numbers already shown still "
+    "work; scroll to reach the rest, then read again."
+)
+
+
 def _extra(capture: Capture) -> list[Line]:
     """The focus and selection lines. They may or may not also be in the tree."""
     return [*([capture.focused] if capture.focused else []), *capture.selected]
@@ -50,8 +62,20 @@ def _extra(capture: Capture) -> list[Line]:
 
 def _full(capture: Capture, footer: str) -> str:
     head = render.header(capture.window_title, capture.app_name)
-    body = "\n".join(map(diff.line, capture.lines))
-    return f"{head}\n{body}\n" + (f"\n{footer}" if footer else "")
+    lines = capture.lines
+    if len(lines) <= MAX_LINES:
+        return f"{head}\n{_body(lines)}\n" + (f"\n{footer}" if footer else "")
+    # Cut, and say so: a number from a line that is not printed still works, so the
+    # rest is not needed to act, only to see further.
+    return (
+        f"{head}\n{_body(lines[:MAX_LINES])}\n"
+        f"\n{_CUT.format(rest=len(lines) - MAX_LINES, total=len(lines))}"
+        + (f"\n{footer}" if footer else "")
+    )
+
+
+def _body(lines: list[Line]) -> str:
+    return "\n".join(map(diff.line, lines))
 
 
 class Revisions:
@@ -92,7 +116,9 @@ class Revisions:
         text = None
         if old is not None:
             changes = diff.pair(old.lines, lines, _number)
-            text = diff.text(changes, capture.window_title, footer, len(lines))
+            text = diff.text(
+                changes, capture.window_title, footer, min(len(lines), MAX_LINES)
+            )
         if self.last is not None:
             self._before.insert(0, self.last)
             del self._before[self.KEEP_BEHIND :]
