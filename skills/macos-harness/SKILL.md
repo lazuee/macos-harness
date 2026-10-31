@@ -16,7 +16,7 @@ macos-harness set_value --app "TextEdit" --element_index 7 --value "report.txt" 
 - `get_app_state` prints one line per thing on screen. The number at the start of a line is its `element_index`.
 - Read, act, then read again before the next step. Older numbers may be wrong. Chain sure steps with the read after them: `&&` stops at the first failure, and one call costs less than three.
 - The second read prints only what changed (`~` changed, `+` new). `Nothing changed` means your action did nothing: try another way, do not read again.
-- If a click by number does nothing, open the file on the `Screenshot` line and click with `--x` and `--y` (pixels in that image).
+- If a click by number does nothing, open the file on the `Screenshot` line and click by `--x` and `--y`. No menu bar in the image: use numbers there.
 - If the state shows only a menu, click one of its lines, or leave it with `press_key` and `--key Escape`.
 - `type_text` types at the text cursor: click the field first. `set_value` replaces a field's whole text and needs no click.
 - Text with quotes or several lines: `macos-harness paste --app "TextEdit" <<'EOF'`, the text, `EOF`.
@@ -75,7 +75,7 @@ macos-harness drag --app TextEdit --from_x 200 --from_y 300 --to_x 500 --to_y 30
 - `may not`, `switched off`, `did not allow`, `cannot work without`, `front app back`, `Mac is locked`: tell the person, try no other route.
 - `No app called`: use a bundle id from `list_apps`.
 - `showed no window`, `has no open window`, `could not start the app`: no window; read once more, then tell the person.
-- `off screen`: scroll to it and read, or click by pixel. `No window of the app is at`: use pixels of the newest screenshot.
+- `off screen`: scroll to it and read, or click by pixel. `No window of the app is at`, bad scale: use pixels of the newest screenshot.
 - `cannot be set`, `selection be set`: click the field, use keys and `type_text`. `does not contain that text`: copy it from the newest read. `not among the secondary actions`: use a printed name.
 - `No key`, `This key`, `chord`: one normal key per press, after its modifiers. `was given`: give the flag it names.
 - `clipboard`, `paste`: read, click the target field, paste again. `menu`: press Escape, read, reopen the menu.
