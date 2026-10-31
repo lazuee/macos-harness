@@ -237,6 +237,23 @@ def test_merged_runs_sibling_text_attributed_web_text_assembled(monkeypatch):
     assert merged.value == "v" * 512 + " " + "w" * 512  # cut first, joined after
 
 
+def test_a_control_character_does_not_rewrite_the_line():
+    """An ESC or CR in a value comes from the app: it must not act on the terminal."""
+    assert one(value="a\x1b[2Kb") == "button a\\x1b[2Kb"
+    assert one(value="a\rb") == "button a\\x0db"
+
+
+def test_a_title_is_escaped_too():
+    assert one(title="t\x07") == "button t\\x07"
+
+
+def test_the_raw_value_is_kept_for_matching():
+    """select_text compares the value the app holds, so only the line is escaped."""
+    line = render.lines(Node(role="AXButton", value="a\rb"), CTX)[0]
+    assert line.value == "a\rb"
+    assert "\\x0d" in line.text
+
+
 def test_invisible_odd_characters_pass_through_raw_lines_can():
     assert one(title="a b\u200b ") == "button a b\u200b "
 

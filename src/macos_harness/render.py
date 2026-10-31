@@ -79,6 +79,23 @@ def _is_link(node: Node) -> bool:
     return node.role == "AXLink" and bool(node.url)  # its value is its target
 
 
+def plain(text: str) -> str:
+    """Text with control characters made visible.
+
+    These strings come from the app, not from us: a stray CR or ESC in a window
+    title or a value can otherwise take the cursor back, or start an escape
+    sequence, and rewrite what the agent reads. Tab, newline and the two invisible
+    characters that turn up in real text stay raw; a carriage return does not,
+    because it takes the cursor back to the start of the line.
+    """
+    return "".join(
+        ch
+        if ch.isprintable() or ch in "\t \n" or ch in "\u200b\u00a0"
+        else f"\\x{ord(ch):02x}"
+        for ch in text
+    )
+
+
 def _fields(node: Node) -> str:
     link = _is_link(node)
     said = (
@@ -100,15 +117,16 @@ def _fields(node: Node) -> str:
         ("Placeholder", node.placeholder),
         ("ID", node.identifier),
     ]
-    present = [(label, text) for label, text in labelled if text]
-    actions = ", ".join(node.actions)
-    if node.title:
-        chunks = [node.title] + [f"{label}: {text}" for label, text in present]
+    present = [(label, plain(text)) for label, text in labelled if text]
+    actions = ", ".join(plain(a) for a in node.actions)
+    title = plain(node.title) if node.title else node.title
+    if title:
+        chunks = [title] + [f"{label}: {text}" for label, text in present]
     elif len(present) == 1 and not actions:  # one text and nothing else prints bare
         chunks = [present[0][1]]
     else:
         chunks = [f"{label}: {text}" for label, text in present]
-    sizes = ([node.title] if node.title else []) + [text for _, text in present]
+    sizes = ([title] if title else []) + [text for _, text in present]
     if actions:
         chunks.append(f"Secondary Actions: {actions}")
         sizes.append(actions)
