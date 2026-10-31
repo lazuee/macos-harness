@@ -6,6 +6,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from . import errors
+
 API_VERSION = "MacosHarnessIPC-1"  # client and helper must agree on this
 MAX_FRAME_BYTES = 8 * 1024 * 1024  # one message on the socket, either way
 CALL_TIMEOUT_S = 120.0  # the client gives up after this long
@@ -102,8 +104,42 @@ class Shot:
     origin: Point  # top left of the captured rect in global points
     size: tuple[int, int]  # pixels
 
-    def to_screen(self, x: float, y: float) -> Point:
-        return (x / self.scale + self.origin[0], y / self.scale + self.origin[1])
+    def to_screen(self, x: float, y: float, at: Rect | None = None) -> Point:
+        """Image pixels of this shot to global screen points.
+
+        The one inverse of `to_image`, so the two can never drift apart. A window on
+        a display left of the main one has a negative origin and maps correctly.
+
+        `at` is the window's frame right now. The origin stored here is the one from
+        the read, so a window that moved would otherwise put the click somewhere it
+        never was. A window that was resized changes what a pixel means, so that
+        refuses instead of aiming at the wrong place.
+        """
+        scale = self.valid_scale
+        origin = self.origin
+        if at is not None:
+            x0, y0, width, height = at
+            w, h = self.size[0] / scale, self.size[1] / scale
+            if abs(w - width) > 1 or abs(h - height) > 1:  # a point: rounding only
+                raise errors.screenshot_size(self.size)
+            origin = (x0, y0)
+        return (x / scale + origin[0], y / scale + origin[1])
+
+    def to_image(self, x: float, y: float) -> Point:
+        """Global screen points back to this shot's pixels."""
+        scale = self.valid_scale
+        return ((x - self.origin[0]) * scale, (y - self.origin[1]) * scale)
+
+    @property
+    def valid_scale(self) -> float:
+        """The pixel-per-point scale, refusing a degenerate one.
+
+        A zero or negative scale would otherwise map every point to the same place
+        (or raise deep inside the division) instead of saying what went wrong.
+        """
+        if not self.scale > 0:
+            raise errors.screenshot_scale(self.scale)
+        return self.scale
 
 
 @dataclass(frozen=True)

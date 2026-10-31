@@ -18,7 +18,7 @@ from macos_harness import errors, helper, person, tools
 from macos_harness.model import AgentSession, AppKind, AppTarget
 
 ACTION_LINE = "Done. Call `get_app_state` to see the new state of the UI.\n"
-SHOT_LINE = f"Screenshot (800x600 px): {SHOT.path}\n"
+SHOT_LINE = f"Screenshot (800x600 px, {SHOT.scale:g} px per point): {SHOT.path}\n"
 GATES = [
     "apps.resolve",
     "policy.decide",
@@ -519,7 +519,7 @@ def test_keep_prints_the_kept_copy_of_the_screenshot(world):
     """Proof of work: --keep copies the picture where it is never pruned."""
     out = world.run("get_app_state", "Demo", "--keep")[1]
     assert out.endswith(
-        "Screenshot (800x600 px): /Users/x/.macos-harness/proof/Demo-x7k2qd.jpeg\n"
+        "Screenshot (800x600 px, 2 px per point): /Users/x/.macos-harness/proof/Demo-x7k2qd.jpeg\n"
     )
     assert world.args("screenshot.keep") == (SHOT.path, "Demo")
     assert world.run("get_app_state", "Demo")[1].endswith(SHOT_LINE)  # off by default
@@ -716,6 +716,7 @@ def test_action_order(active):
         "person.gate",  # again after the wait for the app's queue
         "apps.running",
         "apps.kind",
+        "windows.key_window",  # the frame now: pixels are mapped through where the window is
         "revisions.resolve",
         "presence.pointer_activity",
         "actions.click",

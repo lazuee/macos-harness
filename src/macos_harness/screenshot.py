@@ -223,6 +223,8 @@ def capture(window: WindowRef, extras: tuple[tuple[int, Rect], ...] = ()) -> Sho
     if not (size[0] and size[1] and width > 0):
         raise errors.screenshot_size(size)
     scale, origin = size[0] / width, (x, y)
+    if not scale > 0:  # a zero would divide every later point into the same place
+        raise errors.screenshot_scale(scale)
     drawn = [(i, frame) for wid, frame in extras if (i := _first_image(wid, ()))]
     if drawn:
         image, origin = _composed(image, window.frame, drawn, scale)

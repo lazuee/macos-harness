@@ -87,6 +87,42 @@ def test_coordinates_screenshot_pixels_divided_by_scale_factor():
     assert shot.to_screen(0, 0) == (60.0, 58.0)
 
 
+def test_coordinates_round_trip_on_a_display_left_of_the_main_one():
+    """A second display to the left has a negative origin: the pair must invert."""
+    shot = Shot("p", scale=2.0, origin=(-1920.0, 0.0), size=(1600, 1200))
+    assert shot.to_screen(800, 300) == (-1520.0, 150.0)
+    assert shot.to_image(-1520.0, 150.0) == (800.0, 300.0)
+
+
+def test_coordinates_follow_the_window_when_it_moved_since_the_read():
+    """The stored origin is from the read; a window that moved must not be aimed at
+    where it used to be."""
+    shot = Shot("p", scale=2.0, origin=(60.0, 58.0), size=(1120, 1184))
+    assert shot.to_screen(560, 918, at=(160.0, 158.0, 560.0, 592.0)) == (
+        440.0,
+        617.0,
+    )
+
+
+def test_coordinates_refuse_a_window_resized_since_the_read():
+    """A resized window changes what a pixel of the old shot means."""
+    shot = Shot("p", scale=2.0, origin=(60.0, 58.0), size=(1120, 1184))
+    with pytest.raises(errors.HarnessError, match="unusable size"):
+        shot.to_screen(10, 10, at=(60.0, 58.0, 300.0, 592.0))
+
+
+def test_coordinates_a_whole_point_of_rounding_still_matches():
+    shot = Shot("p", scale=2.0, origin=(60.0, 58.0), size=(1120, 1184))
+    assert shot.to_screen(560, 918, at=(60.0, 58.0, 559.5, 591.5)) == (340.0, 517.0)
+
+
+def test_scale_must_be_positive():
+    with pytest.raises(errors.HarnessError, match="unusable scale"):
+        Shot("p", scale=0.0, origin=(0.0, 0.0), size=(10, 10)).to_screen(5, 5)
+    with pytest.raises(errors.HarnessError, match="unusable scale"):
+        Shot("p", scale=-2.0, origin=(0.0, 0.0), size=(10, 10)).to_image(5, 5)
+
+
 def test_coordinates_model_scaled_moved_window_frame_screen_step(folder, monkeypatch):
     monkeypatch.setattr(
         screenshot, "_window_image", lambda wid, extra: fake_image(64, 48)

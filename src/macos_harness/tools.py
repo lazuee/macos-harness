@@ -356,16 +356,20 @@ def _act(
             settled = mods.settle.wait(target, kind, read, abandoned=call.abandoned)
         if unchecked:
             _check_page(app, settled or read(mods.windows.key_window(target)))
+        window = mods.windows.key_window(target)
         where = []
         for item in targets:
             if isinstance(item, int):
-                reread = lambda: read(mods.windows.key_window(target))
+                reread = lambda: read(window)
                 ignore = call.name in REFETCH_IGNORES_VALUE
                 where.append(app.revisions.resolve(item, reread, ignore_value=ignore))
             elif app.shot is None:  # the last state read got no picture to point in
                 raise errors.screenshot_failed()
             else:
-                where.append(app.shot.to_screen(*item))
+                # The shot carries the window origin of the read, and the window may
+                # have moved or been resized since. Map through where the window is
+                # now, so pixels are not offset by a stale origin.
+                where.append(app.shot.to_screen(*item, at=window.frame))
         _still_wanted(call, planned)  # the settle and the lookups above took their time
         mods.presence.pointer_activity("idle")
         # Set before the action: one that posted its events and then failed (the
@@ -397,7 +401,13 @@ def get_app_state(call: Call) -> Result:
             shot, path=mods.screenshot.keep(shot.path, target.name)
         )
     if isinstance(shot, Shot):
-        line = f"Screenshot ({shot.size[0]}x{shot.size[1]} px): {shot.path}"
+        # Say how pixels map to screen points: a click takes screenshot pixels of
+        # THIS window, not points and not a guess at the layout. Retina is 2.0, and
+        # the value follows the display the window is on, so it is never assumed.
+        line = (
+            f"Screenshot ({shot.size[0]}x{shot.size[1]} px, {shot.scale:g} px per point): "
+            f"{shot.path}"
+        )
         picture = {"url": PurePosixPath(shot.path).as_uri()}
     else:
         line, picture = f"Screenshot: none. {shot.message}", None

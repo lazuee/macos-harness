@@ -20,7 +20,7 @@ from macos_harness import cli, errors, protocol
 
 SRC = Path(cli.__file__).parent
 STATE = 'Window: "Demo", App: Demo.\n0 button OK\n\n' + (
-    f"Screenshot (800x600 px): {fakes_a.SHOT.path}\n"
+    f"Screenshot (800x600 px, {fakes_a.SHOT.scale:g} px per point): {fakes_a.SHOT.path}\n"
 )
 
 

@@ -522,6 +522,16 @@ TEXTS = [
         "server_error",
         P + "The screenshot has an unusable size: (0, 1184)",
     ),
+    (
+        "screenshot_scale",
+        (0.0,),
+        100,
+        "server_error",
+        P
+        + "The screenshot has an unusable scale: 0.0 pixels per point, so pixel positions "
+        "cannot be mapped. Call `get_app_state` again to take a new screenshot before "
+        "using x and y.",
+    ),
 ]
 KEYWORDS = {
     "locked": [
