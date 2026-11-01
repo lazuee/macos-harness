@@ -179,7 +179,7 @@ class Presence:
     def __init__(self):
         self.calls, self.windows = [], []
 
-    def pointer_move(self, point, window=None):
+    def pointer_move(self, point, window=None, duration=0.16):
         self.calls.append(("move", point))
         self.windows.append(window)
 

@@ -59,6 +59,7 @@ CLICK_GAP = 0.1  # seconds between the clicks of a double click
 # DRAG_MAX steps. Measured: an AppKit drag session (Finder, a drop target) drops with
 # steps of 26 points 20 ms apart, 0 of 6 with steps of 65 points or more.
 DRAG_SPAN, DRAG_STEP, DRAG_MAX = 20.0, 0.02, 60
+MOVE_TRIES, MOVE_NEAR, MOVE_STEP = 10, 3.0, 0.30  # a written position, retried to rest
 LONG_WAIT = 0.1  # a wait longer than this ends when the call is cancelled
 PRESS_JOIN = 0.25  # seconds a press that opened no menu gets to come back
 FILL_WAIT, FILL_POLL = 0.25, 0.01  # a menu opened to be filled: longest open, poll
@@ -75,11 +76,11 @@ HOLDS = {
     "AXGroup",
     "AXSplitGroup",
     "AXSplitter",
-    "AXLayoutArea",
-    "AXLayoutItem",
     "AXScrollArea",
     "AXUnknown",
 }
+# A drawing surface (Freeform's canvas, a page) is clicked on empty space to place
+# things, so AXLayutArea/AXLayoutItem are targets, not gaps and not in this set.
 MENU_ROLES = {"AXMenuBarItem", "AXMenuItem"}
 OPENS_MENU = {"AXMenuBarItem", "AXPopUpButton", "AXMenuButton"}
 MAY_SELECT = {"AXRow", "AXCell"}  # a click there selects: never the Command tier
@@ -362,9 +363,10 @@ def _unanswered(error: errors.HarnessError) -> bool:
 # --- mouse ------------------------------------------------------------------------
 
 
-def _deliver(app, window, element, series, button=0, key=None, hold=None, lead=None):
+def _deliver(app, window, element, series, button=0, key=None, hold=None, lead=None, follow=None):
     """Post a series of (kind, point, click count, seconds to wait) to the process
-    that owns the window. A button that went down always comes up again."""
+    that owns the window. A button that went down always comes up again. `follow`
+    follows with the visible cursor, so a drag reads as one."""
     _usable(window)
     enforcer, pid = focus.enforcer(app.target), _recipient(app, window.pid)
     held = keys.modifiers(key) if key else 0
@@ -385,6 +387,10 @@ def _deliver(app, window, element, series, button=0, key=None, hold=None, lead=N
                 events.post(
                     pid, events.mouse(kind, point, window, button, count, flags)
                 )
+                if follow is not None:
+                    # After its own event, and never slower than the step's wait, so
+                    # the arrow keeps pace with the drag rather than trailing it.
+                    presence.pointer_move(point, window, duration=min(wait, 0.2))
                 pressed = None if kind == "up" else (point, count or pressed[1])
                 _pause(hold if hold and kind == "down" else wait, app.cancel)
         finally:
@@ -550,6 +556,47 @@ def click(
     _deliver(app, window, element, series, button, key, hold, lead)
 
 
+def move(app: AppSession, line: Line, to: Point) -> None:
+    """Put the element's frame at `to` (its top left, in screen points).
+
+    A drag needs the app to arm a drag session; Freeform's canvas never does, so a
+    shape cannot be dragged there, but it does obey a written AXPosition. The
+    written move is preferred whenever the app allows it and is exact, so the drag
+    stays as the fallback for an element whose position is not settable.
+
+    Freeform applies a written AXPosition as `new = 2 * old - written`, not as the
+    value itself, so one write from an unknown origin lands somewhere else. The
+    first write is the plain value; when the frame does not come back at the
+    target the doubling form is used instead, repeated until it rests there. A
+    plain app is at the target after the first write and never sees the rest.
+    """
+    element = line.element
+    _owner(app, element)
+    _show(element)
+    box = ax.frame(element)
+    if box is not None and ax.settable(element, "AXPosition"):
+        for attempt in range(MOVE_TRIES):
+            box = ax.frame(element)
+            if box is None:
+                raise errors.cannot_click_offscreen()
+            if abs(box[0] - to[0]) <= MOVE_NEAR and abs(box[1] - to[1]) <= MOVE_NEAR:
+                return
+            if attempt == 0:
+                ax.place(element, to)
+            else:
+                ax.place(element, (2 * box[0] - to[0], 2 * box[1] - to[1]))
+            _pause(MOVE_STEP, app.cancel)
+        return
+    if box is None:
+        raise errors.cannot_click_offscreen()
+    pick, drop = _middle(box), (to[0] + box[2] / 2, to[1] + box[3] / 2)
+    drag(app, pick, drop)
+
+
+def _middle(box) -> Point:
+    return (box[0] + box[2] / 2, box[1] + box[3] / 2)
+
+
 def drag(app: AppSession, start: Point, end: Point) -> None:
     """Press at the start, move there in short steps, release at the end. One
     move through the midpoint only drops in an AppKit drag session
@@ -568,7 +615,9 @@ def drag(app: AppSession, start: Point, end: Point) -> None:
     presence.pointer_press(1)
     path = [("dragged", point, 0, DRAG_STEP) for point in points]
     series = [("down", start, 1, DRAG_STEP), *path, ("up", end, 1, 0)]
-    _deliver(app, window, element, series, lead=MOVE_LEAD)
+    # The cursor is warped along with each step: the events alone leave the arrow
+    # sitting at the start until the drop, which reads as a drag that does nothing.
+    _deliver(app, window, element, series, lead=MOVE_LEAD, follow=points)
     presence.pointer_move(end, window)
 
 

@@ -67,9 +67,11 @@ def _where(window: WindowRef | None) -> dict[str, int | None]:
 
 
 @_seen
-def pointer_move(point: Point, window: WindowRef | None = None) -> None:
+def pointer_move(
+    point: Point, window: WindowRef | None = None, duration: float = 0.16
+) -> None:
     """The agent acts at `point` (global screen points, origin top left)."""
-    OVERLAY.move(point[0], point[1], **_where(window))
+    OVERLAY.move(point[0], point[1], duration=duration, **_where(window))
 
 
 @_seen
