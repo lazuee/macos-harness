@@ -60,6 +60,8 @@ CLICK_GAP = 0.1  # seconds between the clicks of a double click
 # steps of 26 points 20 ms apart, 0 of 6 with steps of 65 points or more.
 DRAG_SPAN, DRAG_STEP, DRAG_MAX = 20.0, 0.02, 60
 MOVE_TRIES, MOVE_NEAR, MOVE_STEP = 10, 3.0, 0.30  # a written position, retried to rest
+MOVE_LEARN = 20.0  # a step at least this long is what the gain is learned from
+MOVE_PASSES = 3  # whole settle passes, for an element starting far from the target
 LONG_WAIT = 0.1  # a wait longer than this ends when the call is cancelled
 PRESS_JOIN = 0.25  # seconds a press that opened no menu gets to come back
 FILL_WAIT, FILL_POLL = 0.25, 0.01  # a menu opened to be filled: longest open, poll
@@ -575,22 +577,53 @@ def move(app: AppSession, line: Line, to: Point) -> None:
     _show(element)
     box = ax.frame(element)
     if box is not None and ax.settable(element, "AXPosition"):
-        for attempt in range(MOVE_TRIES):
+        # Repeated: one pass can end short when the element starts far away, because
+        # the write that lands on a distant target is huge and the app clamps it.
+        for _ in range(MOVE_PASSES):
+            _settle(element, to, app)
             box = ax.frame(element)
             if box is None:
-                raise errors.cannot_click_offscreen()
+                return
             if abs(box[0] - to[0]) <= MOVE_NEAR and abs(box[1] - to[1]) <= MOVE_NEAR:
                 return
-            if attempt == 0:
-                ax.place(element, to)
-            else:
-                ax.place(element, (2 * box[0] - to[0], 2 * box[1] - to[1]))
-            _pause(MOVE_STEP, app.cancel)
         return
     if box is None:
         raise errors.cannot_click_offscreen()
     pick, drop = _middle(box), (to[0] + box[2] / 2, to[1] + box[3] / 2)
     drag(app, pick, drop)
+
+
+def _settle(element, to: Point, app: AppSession) -> None:
+    """Write the position until the element rests at `to`.
+
+    Apps disagree on what a write means: most set the value, Freeform puts the item
+    at `2 * old - written`. Rather than know which, one probe is written and the
+    step it caused is measured; the write that lands on target is then solved from
+    that gain and repeated. A gain above one (Freeform, -1) is honoured and a step
+    that moves nothing backfalls to the plain value.
+    """
+    gain = 1.0
+    for _ in range(MOVE_TRIES):
+        box = ax.frame(element)
+        if box is None:
+            raise errors.cannot_click_offscreen()
+        gap = (to[0] - box[0], to[1] - box[1])
+        if abs(gap[0]) <= MOVE_NEAR and abs(gap[1]) <= MOVE_NEAR:
+            return
+        write = (box[0] + gap[0] / gain, box[1] + gap[1] / gain)
+        ax.place(element, write)
+        _pause(MOVE_STEP, app.cancel)
+        after = ax.frame(element)
+        if after is None:
+            return
+        caused = (after[0] - box[0], after[1] - box[1])
+        # Learn the gain only from a step big enough to measure it by: near the
+        # target the steps get short and their rounding would corrupt it.
+        if abs(write[0] - box[0]) >= MOVE_LEARN:
+            moved = caused[0] / (write[0] - box[0])
+            if abs(moved) > 0.05:
+                gain = moved
+    return
 
 
 def _middle(box) -> Point:
