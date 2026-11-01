@@ -125,6 +125,14 @@ def set(el: Element, name: str, value: Any) -> None:
     _check(_api().AXUIElementSetAttributeValue(el, name, value))
 
 
+def place(el: Element, point: tuple[float, float]) -> None:
+    """Write AXPosition: a point needs a boxed AXValue, a plain tuple is refused."""
+    api = _api()
+    boxed = api.AXValueCreate(api.kAXValueCGPointType, (float(point[0]), float(point[1])))
+    _check(api.AXUIElementSetAttributeValue(el, "AXPosition", boxed))
+
+
+
 def settable(el: Element, name: str) -> bool:
     code, flag = _api().AXUIElementIsAttributeSettable(el, name, None)
     return bool(flag) and not code

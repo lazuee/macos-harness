@@ -24,6 +24,7 @@ COMMANDS = {
     "get_app_state",
     "click",
     "drag",
+    "move",
     "paste",
     "perform_secondary_action",
     "press_key",

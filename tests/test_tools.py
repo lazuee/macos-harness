@@ -50,13 +50,13 @@ def parsed(*argv):
 # --- the tables ------------------------------------------------------------------------
 
 
-def test_the_eleven_tools_and_nothing_else():
+def test_the_twelve_tools_and_nothing_else():
     names = (
-        "list_apps get_app_state click drag paste perform_secondary_action "
+        "list_apps get_app_state click drag move paste perform_secondary_action "
         "press_key scroll select_text set_value type_text"
     )
     assert sorted(tools.TOOLS) == sorted(names.split())
-    for missing in ("launch_app", "activate", "move", "key_down", "screenshot"):
+    for missing in ("launch_app", "activate", "key_down", "screenshot"):
         assert missing not in tools.TOOLS
     for gone in ("stop", "resume"):  # the host's own interrupt is the stop button
         assert gone not in tools.TOOLS and gone not in tools.COMMANDS
@@ -539,6 +539,13 @@ def test_a_small_bare_group_is_not_a_gap(monkeypatch):
 
 def test_a_control_is_never_a_gap(monkeypatch):
     _probe(monkeypatch, "AXButton", (0.0, 0.0, 400.0, 300.0))
+    assert not actions._gap("box")
+
+
+def test_a_drawing_surface_is_not_a_gap(monkeypatch):
+    """Freeform's canvas is clicked on empty space to place a shape, so a big
+    layout area is a target even though it is a container."""
+    _probe(monkeypatch, "AXLayoutArea", (0.0, 0.0, 1200.0, 800.0))
     assert not actions._gap("box")
 
 

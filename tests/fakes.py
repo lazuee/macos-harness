@@ -189,6 +189,13 @@ class FakeAx:
     def frame(self, el: El):
         return el.rect
 
+    def place(self, el: El, point: tuple[float, float]) -> None:
+        """A written position, applied the plain way: the corner goes where asked."""
+        _, _, w, h = el.rect
+        el.rect = (point[0], point[1], w, h)
+        el.performed.append("set AXPosition")
+
+
     def at(self, app_el: El | None, x: float, y: float) -> El | None:
         roots = [app_el] if app_el else list(self.apps.values())
         hit = None

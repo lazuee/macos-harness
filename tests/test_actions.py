@@ -689,6 +689,43 @@ def test_scroll_by_point_uses_the_window_as_the_page(monkeypatch):
     )
 
 
+# --- move ----------------------------------------------------------------------------
+
+
+def test_move_writes_the_position_when_the_app_allows_it(monkeypatch):
+    """Freeform takes no drag on its canvas, but obeys a written position."""
+    r = rig(monkeypatch)
+    el = r.add(El("AXLayoutItem", rect=(200, 200, 80, 20), settable_names={"AXPosition"}))
+    r.actions.move(r.app, line(el), (50.0, 60.0))
+    assert el.rect == (50, 60, 80, 20)
+    assert r.events.posted == []  # no mouse needed
+
+
+def test_move_retries_an_app_that_only_halves_the_gap(monkeypatch):
+    """Freeform lands a written position at 2 * old - value, so one write is not
+    enough: it has to be repeated until the element rests where it was asked."""
+    r = rig(monkeypatch)
+    el = r.add(El("AXLayoutItem", rect=(900, 700, 80, 20), settable_names={"AXPosition"}))
+    plain = type(r.ax).place
+
+    def freeform(self, element, point):
+        # Freeform puts the item at 2 * current - written, whatever was written.
+        x, y, _, _ = element.rect
+        plain(self, element, (2 * x - point[0], 2 * y - point[1]))
+
+    monkeypatch.setattr(type(r.ax), "place", freeform)
+    r.actions.move(r.app, line(el), (50.0, 60.0))
+    assert abs(el.rect[0] - 50) <= 4 and abs(el.rect[1] - 60) <= 4
+
+
+def test_move_falls_back_to_a_drag_without_a_settable_position(monkeypatch):
+    r = rig(monkeypatch)
+    el = r.add(El("AXLayoutItem", rect=(200, 200, 80, 20)))
+    r.actions.move(r.app, line(el), (400.0, 300.0))
+    assert el.rect == (200, 200, 80, 20)  # untouched
+    assert "dragged" in r.events.types()
+
+
 # --- drag ----------------------------------------------------------------------------
 
 
@@ -709,6 +746,18 @@ def test_drag_synthesized_click_drag_point(monkeypatch):
     assert times == [0.0, *(round(0.067 + 0.02 * i, 3) for i in range(15))]
     assert r.presence.calls[0] == ("move", (200.0, 200.0))
     assert r.presence.calls[-1] == ("move", (400.0, 300.0))
+
+
+def test_the_cursor_travels_with_the_drag(monkeypatch):
+    """The events alone leave the arrow parked at the start, which reads as a drag
+    that does nothing: the visible pointer follows every step."""
+    r = rig(monkeypatch)
+    r.presence.calls.clear()
+    r.actions.drag(r.app, (200.0, 200.0), (400.0, 300.0))
+    moved = [point for name, point in r.presence.calls if name == "move"]
+    assert moved[0] == (200.0, 200.0) and moved[-1] == (400.0, 300.0)
+    assert moved == sorted(moved)  # it walks the path in order, never jumps back
+    assert len(set(moved)) > 10  # one per step, not just the two ends
 
 
 def test_a_long_drag_takes_at_most_sixty_steps(monkeypatch):

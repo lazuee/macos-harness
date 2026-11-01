@@ -464,6 +464,14 @@ def drag(call: Call) -> Result:
     return _act(call, lambda app, s, e: mods.actions.drag(app, s, e), start, end)
 
 
+def move(call: Call) -> Result:
+    """Put an element's top-left corner at a pixel of the last read's screenshot."""
+    a = call.args
+    index = _index(a)
+    to = _point(a, "x", "y")
+    return _act(call, lambda app, line, spot: mods.actions.move(app, line, spot), index, to)
+
+
 def press_key(call: Call) -> Result:
     a = call.args
     key = a.get("key", "")
@@ -830,6 +838,17 @@ TOOLS = {
         "app from_x from_y to_x to_y",
         description="Drag between two pixel positions of the screenshot",
         example="drag --app Finder --from_x 200 --from_y 300 --to_x 400 --to_y 300",
+    ),
+    "move": _tool(
+        move,
+        "app element_index x y",
+        "app element_index x y",
+        description=(
+            "Move an element so its top left corner sits at that pixel of the "
+            "screenshot. Written through the accessibility API and exact, so use it in "
+            "place of a drag on a canvas that does not take drags (Freeform)."
+        ),
+        example="move --app Freeform --element_index 7 --x 400 --y 300",
     ),
     "press_key": _tool(
         press_key,

@@ -415,7 +415,7 @@ def test_the_shared_fake_has_every_function_of_this_module():
         if inspect.isfunction(found) and found.__module__ == ax.__name__
         if not name.startswith("_")
     }
-    assert len(public) == 18
+    assert len(public) == 19
     for name, real in public.items():
         fake = list(inspect.signature(getattr(FakeAx, name)).parameters)[1:]
         assert len(fake) == len(inspect.signature(real).parameters), name
