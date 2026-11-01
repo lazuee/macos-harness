@@ -125,6 +125,16 @@ class Shot:
             origin = (x0, y0)
         return (x / scale + origin[0], y / scale + origin[1])
 
+    def still_scaled(self, pixels_wide: int) -> bool:
+        """Whether a fresh capture is the width this one was, so its scale still holds.
+
+        A window across two displays of different pixel density, or dragged off the
+        one it was on, is captured at another scale with its point size unchanged.
+        The size check above cannot see that, and the same pixel would land
+        hundreds of points away.
+        """
+        return abs(pixels_wide - self.size[0]) <= 1
+
     def to_image(self, x: float, y: float) -> Point:
         """Global screen points back to this shot's pixels."""
         scale = self.valid_scale

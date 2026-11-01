@@ -386,6 +386,9 @@ def _act(
                 # The shot carries the window origin of the read, and the window may
                 # have moved or been resized since. Map through where the window is
                 # now, so pixels are not offset by a stale origin.
+                wide = mods.screenshot.pixel_width(window)
+                if wide is not None and not app.shot.still_scaled(wide):
+                    raise errors.screenshot_size(app.shot.size)
                 where.append(app.shot.to_screen(*item, at=window.frame))
         _still_wanted(call, planned)  # the settle and the lookups above took their time
         mods.presence.pointer_activity("idle")

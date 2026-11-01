@@ -79,6 +79,7 @@ CONTRACT = {
     "settle": {"wait": None},
     "screenshot": {
         "capture": SHOT,
+        "pixel_width": SHOT.size[0],  # the live width: the shot was taken of this
         "cleanup": None,
         "keep": "/Users/x/.macos-harness/proof/Demo-x7k2qd.jpeg",
     },

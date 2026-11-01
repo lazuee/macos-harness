@@ -1078,6 +1078,26 @@ def test_the_open_menu_reaches_the_tree_read(world):
     assert args == (RUNNING, WINDOW, AppKind()) and kwargs == {"menu": "the menu"}
 
 
+def test_a_point_refused_when_the_window_is_captured_at_another_scale(active, world):
+    """The same pixel means another place after the window moves to a display of a
+    different density, with its point size unchanged and the shot now wrong."""
+    world.screenshot.answers["pixel_width"] = SHOT.size[0] // 2
+    code, _, err = active.run("click", "Demo", "--x", "200", "--y", "100")
+    assert code != 0 and "unusable size" in err
+    assert "actions.click" not in active.names()
+
+
+def test_a_point_is_converted_when_the_width_still_matches(active, world):
+    world.screenshot.answers["pixel_width"] = SHOT.size[0]
+    assert active.run("click", "Demo", "--x", "200", "--y", "100")[0] == 0
+
+
+def test_an_unknown_width_does_not_block_a_point(active, world):
+    """A window that gives no picture to measure is trusted as before."""
+    world.screenshot.answers["pixel_width"] = None
+    assert active.run("click", "Demo", "--x", "200", "--y", "100")[0] == 0
+
+
 def test_a_point_is_converted_with_the_last_screenshot(active):
     active.run("click", "Demo", "--x", "200", "--y", "100")
     assert active.args("actions.click")[1] == (

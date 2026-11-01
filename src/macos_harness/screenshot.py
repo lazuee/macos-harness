@@ -208,6 +208,17 @@ def _composed(base, frame: Rect, extras: list[tuple[object, Rect]], scale: float
     return Quartz.CGBitmapContextCreateImage(context), (left, top)
 
 
+def pixel_width(window: WindowRef) -> int | None:
+    """How many pixels wide the window is captured now, or None when it gives no
+    picture. None is not a mismatch: the caller then trusts the shot it holds."""
+    image = _first_image(window.window_id, ())
+    if image is None:
+        return None
+    import Quartz
+
+    return Quartz.CGImageGetWidth(image) or None
+
+
 def capture(window: WindowRef, extras: tuple[tuple[int, Rect], ...] = ()) -> Shot:
     """Take the picture and write the file. A failure is reported as it is. Extra
     windows (id, frame) that give a picture are drawn over the window."""
